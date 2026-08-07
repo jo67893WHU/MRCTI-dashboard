@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>MRCTI National Water Utility Observatory</title>
+  <link rel="stylesheet" href="styles.css?v=20260806-7">
+</head>
+<body>
+  <header class="app-header">
+    <div class="identity">
+      <div class="wordmark">MRCTI</div>
+      <div class="product-name">National Water Utility Observatory</div>
+    </div>
+    <div class="header-meta"><span>Research release</span><span>National CWS coverage</span></div>
+  </header>
+
+  <nav class="section-nav" aria-label="Primary navigation">
+    <button class="nav-item active" data-view="screen">Utility screen</button>
+    <button class="nav-item" data-view="models">Model evidence</button>
+    <button class="nav-item" data-view="methods">Data &amp; methods</button>
+  </nav>
+
+  <main>
+    <section id="screenView" class="view active">
+      <div class="page-heading">
+        <div><p class="kicker">NATIONAL COMMUNITY WATER SYSTEMS</p><h1>Utility screening and geographic context</h1></div>
+        <div class="heading-actions"><button class="quiet-button" id="resetBtn">Reset</button><button class="solid-button" id="exportBtn">Export selection</button></div>
+      </div>
+
+      <div class="scope-note">
+        <span class="scope-label">Analytical scope</span>
+        <span>EMMA is the national base layer. Public and private financial records are shown only where a PWSID-level match is available. Model residuals are not yet included.</span>
+      </div>
+
+      <section class="filter-block" aria-label="Utility filters">
+        <div class="filter-grid">
+          <label class="field field-wide"><span>Search</span><input id="search" type="search" placeholder="PWSID, utility, or municipality"></label>
+          <label class="field"><span>State</span><select id="stateFilter"><option value="">All states</option></select></label>
+          <label class="field"><span>Ownership</span><select id="ownerFilter"><option value="">All ownership</option></select></label>
+          <label class="field"><span>Source</span><select id="sourceFilter"><option value="">All sources</option></select></label>
+          <label class="field"><span>Data layer</span><select id="coverageFilter"><option value="">All records</option><option>EMMA only</option><option>Public financial</option><option>Private financial</option></select></label>
+          <label class="field"><span>Screen condition</span><select id="riskFilter"><option value="">No condition</option><option value="open">Open health violation</option><option value="burden">Charge burden ≥ 2%</option><option value="health10">Any 10-year health violation</option><option value="recovery">Cost recovery &lt; 1</option></select></label>
+        </div>
+      </section>
+
+      <section class="summary-strip" id="summaryStrip" aria-label="Selection summary"></section>
+
+      <section class="analysis-grid">
+        <article class="analysis-section map-section">
+          <div class="section-heading"><div><p class="kicker">GEOGRAPHIC DISTRIBUTION</p><h2>State-level view</h2></div><label class="field compact"><span>Map measure</span><select id="metricSelect"><option value="count">Utility count</option><option value="burden">Median charge burden</option><option value="charge">Median annual charge</option><option value="h10rate">10-year health violations / 1,000</option><option value="coverage">Financial data coverage</option></select></label></div>
+          <div id="mapWrap" class="map-wrap"><svg id="stateMap" role="img" aria-label="United States state choropleth"></svg><div id="mapTooltip" class="chart-tooltip" hidden></div><div id="mapEmptyState" class="map-empty-state" hidden><strong>NO DATA</strong><span>No geographic observations for the current selection</span></div></div>
+          <div class="map-legend"><span id="legendLow">Lower</span><div id="legendRamp" class="legend-ramp"></div><span id="legendHigh">Higher</span><span id="mapSelectionLabel">Click a state to filter</span></div>
+        </article>
+
+        <article class="analysis-section distribution-section">
+          <div class="section-heading"><div><p class="kicker">DISTRIBUTION</p><h2>Annual charge burden</h2></div></div>
+          <div id="histogram" class="histogram" role="img" aria-label="Distribution of annual charge burden"></div>
+          <p class="figure-note" id="distributionNote"></p>
+        </article>
+      </section>
+
+      <section class="analysis-section ranking-section">
+        <div class="section-heading table-heading"><div><p class="kicker">UTILITY-LEVEL RECORDS</p><h2>Ranked screening table</h2><p id="resultCount" class="subtext"></p></div><label class="field compact"><span>Rank by</span><select id="rankMetric"><option value="burden">Charge burden</option><option value="h10">10-year health violations</option><option value="tAll">All-year total violations</option><option value="charge">Annual charge</option><option value="pop">Population served</option><option value="recoveryAsc">Lowest cost recovery</option></select></label></div>
+        <div class="table-scroll"><table><thead><tr><th>Rank</th><th>Utility record</th><th>State</th><th>Ownership</th><th class="num">Population</th><th class="num">Annual charge</th><th class="num">Burden</th><th class="num">10y health</th><th>Coverage</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
+        <div class="pagination"><button id="prevBtn" class="quiet-button">Previous</button><span id="pageLabel"></span><button id="nextBtn" class="quiet-button">Next</button></div>
+      </section>
+    </section>
+
+    <section id="modelsView" class="view">
+      <div class="page-heading"><div><p class="kicker">REPORT MODEL EVIDENCE</p><h1>Model performance and comparability</h1><p class="heading-note">A focused view of the report's two principal screening outcomes and the samples on which they were estimated.</p></div></div>
+      <div class="scope-note model-note"><span class="scope-label">Comparability rule</span><span>Compare performance only within the same outcome. Sample size varies by analytical layer; encoded features count columns after categorical one-hot encoding, not original variables.</span></div>
+      <section class="analysis-section model-section">
+        <div class="section-heading table-heading"><div><p class="kicker">CORE VALIDATION RESULTS</p><h2>Models supporting the first screening release</h2><p class="subtext">Average annual charge and 10-year health violations. Combined is excluded until its sample lineage is reconciled.</p></div></div>
+        <div class="table-scroll"><table><thead><tr><th>Outcome</th><th>Layer</th><th class="num">Analysis N</th><th class="num">Encoded features</th><th class="num">CV R&sup2;</th><th class="num">CV RMSE</th><th class="num">CV MAE</th></tr></thead><tbody id="coreModelBody"></tbody></table></div>
+      </section>
+      <section class="analysis-section model-section">
+        <div class="section-heading table-heading"><div><p class="kicker">INTERPRETABILITY EVIDENCE</p><h2>What drives the fitted models</h2><p class="subtext">Final report-era random-forest outputs. Importance ranks predictive contribution; SHAP shows direction and dispersion of effects.</p></div><div class="evidence-controls"><label class="field dataset-field"><span>Dataset</span><select id="evidenceDataset"><option value="emma">EMMA</option><option value="public">Public</option><option value="private">Private</option></select></label><div class="outcome-switch" role="group" aria-label="Model outcome"><button class="outcome-button active" data-model-outcome="charge">Annual charge</button><button class="outcome-button" data-model-outcome="health">10-year health violations</button></div></div></div>
+        <div class="evidence-figure-grid">
+          <figure class="evidence-figure"><div class="figure-frame landscape"><img id="importanceFigure" src="assets/model-evidence/emma-charge-feature-importance.jpg" alt="EMMA annual water charge random forest feature importance"></div><figcaption><strong id="importanceTitle">EMMA feature importance</strong><span>Relative contribution to predictive performance; direction is not shown.</span></figcaption></figure>
+          <figure class="evidence-figure"><div class="figure-frame portrait"><img id="shapFigure" src="assets/model-evidence/emma-charge-shap.jpg" alt="EMMA annual water charge SHAP summary"></div><figcaption><strong id="shapTitle">EMMA SHAP distribution</strong><span id="shapCaption">Positive values raise predicted annual charge; negative values lower it.</span></figcaption></figure>
+        </div>
+      </section>
+      <section class="analysis-section model-section">
+        <div class="section-heading table-heading"><div><p class="kicker">SAMPLE LINEAGE AUDIT</p><h2>What each observation count represents</h2></div></div>
+        <div class="table-scroll"><table class="lineage-table"><thead><tr><th>Layer</th><th class="num">Reported N</th><th>Interpretation</th><th>Status</th></tr></thead><tbody>
+          <tr><td>EMMA</td><td class="num">43,531</td><td>National community water-system layer.</td><td><span class="status-tag verified">Verified</span></td></tr>
+          <tr><td>Public</td><td class="num">8,007</td><td>Public financial subset used for the core charge and violation models.</td><td><span class="status-tag verified">Verified</span></td></tr>
+          <tr><td>Private</td><td class="num">277</td><td>dfpvt model rows; 243 unique PWSIDs after identifier reconciliation.</td><td><span class="status-tag verified">Verified</span></td></tr>
+          <tr><td>Combined</td><td class="num">11,628</td><td>Standalone combinedscaled workflow; not the arithmetic union of the current Public and Private samples.</td><td><span class="status-tag review">Not reconciled</span></td></tr>
+        </tbody></table></div>
+        <p class="figure-note evidence-warning">Expected Public + Private under the current core samples: 8,284. Reported Combined: 11,628. The extra 3,344 observations must be traced before Combined can support cross-layer comparison.</p>
+      </section>
+      <details class="model-inventory">
+        <summary>Supplementary model inventory</summary>
+        <div class="inventory-content"><div class="section-heading table-heading"><div><p class="subtext">Additional financial outcomes and legacy Combined outputs retained for provenance.</p></div><label class="field compact"><span>Layer</span><select id="modelLayer"><option value="">All layers</option><option>EMMA</option><option>Public</option><option>Private</option><option>Combined</option></select></label></div>
+        <div class="table-scroll"><table><thead><tr><th>Layer</th><th>Outcome</th><th class="num">Analysis N</th><th class="num">Encoded features</th><th class="num">Train R&sup2;</th><th class="num">CV R&sup2;</th><th class="num">CV RMSE</th><th class="num">CV MAE</th></tr></thead><tbody id="modelBody"></tbody></table></div></div>
+      </details>
+    </section>
+
+    <section id="modelsLegacyView" class="view legacy-model-view">
+      <div class="page-heading"><div><p class="kicker">REPRODUCED REPORT OUTPUTS</p><h1>Model evidence</h1><p class="heading-note">Performance summaries recovered from the report-era random-forest output workbooks.</p></div></div>
+      <div class="scope-note model-note"><span class="scope-label">Interpretation boundary</span><span>These are model-level validation results, not utility-level anomaly scores. A residual screen requires offline prediction and residual calculations by PWSID.</span></div>
+      <section class="analysis-section">
+        <div class="section-heading table-heading"><div><p class="kicker">VALIDATION SUMMARY</p><h2>Available response models</h2></div><label class="field compact"><span>Layer</span><select id="modelLayer"><option value="">All layers</option><option>EMMA</option><option>Public</option><option>Private</option><option>Combined</option></select></label></div>
+        <div class="table-scroll"><table><thead><tr><th>Layer</th><th>Outcome</th><th class="num">Observations</th><th class="num">Features</th><th class="num">Train R²</th><th class="num">CV R²</th><th class="num">CV RMSE</th><th class="num">CV MAE</th></tr></thead><tbody id="modelBody"></tbody></table></div>
+      </section>
+      <section class="evidence-grid">
+        <article><h3>Available now</h3><p>Model performance, feature importance, aggregated SHAP, state-level SHAP, partial dependence, interaction diagnostics, and H-statistics.</p></article>
+        <article><h3>Required for anomaly screening</h3><p>Observed and predicted values, residuals, peer percentiles, flags, and model-version identifiers at the PWSID level.</p></article>
+        <article><h3>Recommended first release</h3><p>Average annual charge and 10-year health violations, calculated offline and validated before publication.</p></article>
+      </section>
+    </section>
+
+    <section id="methodsView" class="view">
+      <div class="page-heading"><div><p class="kicker">PROVENANCE AND LIMITATIONS</p><h1>Data &amp; methods</h1></div></div>
+      <section class="methods-layout">
+        <article><h2>Coverage architecture</h2><dl><div><dt>EMMA national layer</dt><dd>43,531 unique PWSID records in the confirmed February input.</dd></div><div><dt>Public financial overlay</dt><dd>7,968 PWSID matches in the dashboard join.</dd></div><div><dt>Private financial overlay</dt><dd>233 national PWSID matches from the 277-row dfpvt model table after identifiers were uniquely reconciled from privatescaled.</dd></div></dl></article>
+        <article><h2>Geography</h2><p>The state map uses the stored 2018 Census state GeoJSON. No CWS service-area polygons or utility coordinates were found in the project directories, so the map does not imply utility-level location or service boundaries.</p></article>
+        <article><h2>Interpretation</h2><p>Charge burden is annual average water charge divided by median household income. It is a screening ratio, not a formal affordability determination. Missing financial data means “not matched,” not zero.</p></article>
+        <article><h2>Unit of analysis</h2><p>The primary analytical unit is the community water system identified by PWSID. MRCTI city-level aggregation is not performed, and city-to-PWSID correspondence still requires a validated crosswalk.</p></article>
+      </section>
+    </section>
+  </main>
+
+  <aside id="detailDrawer" class="drawer" aria-hidden="true"><button id="closeDrawer" class="drawer-close" aria-label="Close utility profile">×</button><div id="drawerContent"></div></aside>
+  <div id="scrim" class="scrim"></div>
+  <footer><span>MRCTI National Water Utility Observatory</span><span>Research screening interface · Data provenance documented in project archive</span></footer>
+
+  <script src="d3.min.js?v=7.9.0"></script>
+  <script src="states-data.js?v=20260806-1"></script>
+  <script src="data.js?v=20260806-8"></script>
+  <script src="app.js?v=20260806-9"></script>
+</body>
+</html>
