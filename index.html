@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>MRCTI National Water Utility Observatory</title>
-  <link rel="stylesheet" href="styles.css?v=20260806-7">
+  <link rel="stylesheet" href="styles.css?v=20260826-3">
 </head>
 <body>
   <header class="app-header">
@@ -20,6 +20,7 @@
 
   <nav class="section-nav" aria-label="Primary navigation">
     <button class="nav-item active" data-view="screen">Utility screen</button>
+    <button class="nav-item" data-view="outliers">Outliers &amp; trends</button>
     <button class="nav-item" data-view="models">Model evidence</button>
     <button class="nav-item" data-view="methods">Data &amp; methods</button>
   </nav>
@@ -67,6 +68,49 @@
         <div class="section-heading table-heading"><div><p class="kicker">UTILITY-LEVEL RECORDS</p><h2>Ranked screening table</h2><p id="resultCount" class="subtext"></p></div><label class="field compact"><span>Rank by</span><select id="rankMetric"><option value="burden">Charge burden</option><option value="h10">10-year health violations</option><option value="tAll">All-year total violations</option><option value="charge">Annual charge</option><option value="pop">Population served</option><option value="recoveryAsc">Lowest cost recovery</option></select></label></div>
         <div class="table-scroll"><table><thead><tr><th>Rank</th><th>Utility record</th><th>State</th><th>Ownership</th><th class="num">Population</th><th class="num">Annual charge</th><th class="num">Burden</th><th class="num">10y health</th><th>Coverage</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
         <div class="pagination"><button id="prevBtn" class="quiet-button">Previous</button><span id="pageLabel"></span><button id="nextBtn" class="quiet-button">Next</button></div>
+      </section>
+    </section>
+
+    <section id="outliersView" class="view">
+      <div class="page-heading"><div><p class="kicker">CASE-FINDING WORKSPACE</p><h1>Model outliers and violation trends</h1><p class="heading-note">Separate model-relative anomalies from observed changes over time.</p></div></div>
+      <section class="outlier-status" id="residualStatus" aria-live="polite"></section>
+
+      <section class="analysis-section residual-section" id="residualWorkspace">
+        <div class="section-heading table-heading">
+          <div><p class="kicker">EMMA · MODEL-RELATIVE SCREEN</p><h2>Out-of-fold residuals by PWSID</h2><p class="subtext">Residual = observed − cross-validated prediction. Large absolute residuals identify systems furthest from the fitted regression surface.</p></div>
+          <div class="evidence-controls residual-controls">
+            <label class="field dataset-field"><span>Outcome</span><select id="residualOutcome"><option value="health">10-year health violations</option><option value="charge">Annual water charge</option></select></label>
+            <label class="field dataset-field"><span>Direction</span><select id="residualDirection"><option value="">Both directions</option><option value="positive">Above model expectation</option><option value="negative">Below model expectation</option></select></label>
+            <label class="field dataset-field"><span>State</span><select id="residualState"><option value="">All states</option></select></label>
+            <label class="field dataset-field"><span>Display</span><select id="residualScope"><option value="extreme">Most extreme 5%</option><option value="all">All modeled records</option></select></label>
+          </div>
+        </div>
+        <div class="summary-strip compact-summary" id="residualSummary"></div>
+        <div class="residual-grid">
+          <div><div id="residualScatter" class="trend-scatter" role="img" aria-label="Observed versus cross-validated predicted values"></div><p class="figure-note" id="residualFigureNote"></p></div>
+          <div class="residual-table-wrap"><div class="table-scroll"><table><thead><tr><th>Rank</th><th>Utility record</th><th>State</th><th>Ownership</th><th class="num">Observed</th><th class="num">Expected</th><th class="num">Residual</th><th class="num">Extremeness</th></tr></thead><tbody id="residualBody"></tbody></table></div><p class="figure-note" id="residualResultCount"></p><div class="pagination"><button id="residualPrevBtn" class="quiet-button">Previous</button><span id="residualPageLabel"></span><button id="residualNextBtn" class="quiet-button">Next</button></div></div>
+        </div>
+      </section>
+
+      <section class="analysis-section trend-section">
+        <div class="section-heading table-heading">
+          <div><p class="kicker">AVAILABLE NOW · COMBINED SCREEN</p><h2>Recent five years versus preceding five years</h2><p class="subtext">Positive change means the annual violation average worsened; negative change means it improved.</p></div>
+          <div class="evidence-controls">
+            <label class="field dataset-field"><span>Outcome</span><select id="trendOutcome"><option value="health">Health violations</option><option value="total">Total violations</option></select></label>
+            <label class="field dataset-field"><span>Ownership</span><select id="trendOwnership"><option value="">All ownership</option></select></label>
+          </div>
+        </div>
+        <div class="summary-strip compact-summary" id="trendSummary"></div>
+        <div class="trend-grid">
+          <div><div id="trendScatter" class="trend-scatter" role="img" aria-label="Previous versus recent five-year annual violation averages"></div><p class="figure-note">Points above the diagonal worsened; points below it improved. Extreme values are capped visually at the 99th percentile but retain their true values in the table.</p></div>
+          <div class="trend-explainer" id="trendPointDetail"><p class="kicker">SELECTED RECORD</p><h3>Click a point to inspect it</h3><p>The selected utility's PWSID, ownership, previous-period average, recent-period average, and change will appear here. This comparison is descriptive and is not evidence of a causal ownership effect.</p></div>
+        </div>
+      </section>
+
+      <section class="analysis-section ranking-section">
+        <div class="section-heading table-heading"><div><p class="kicker">TREND OUTLIERS</p><h2>Largest observed changes</h2><p id="trendResultCount" class="subtext"></p></div><label class="field compact"><span>Rank by</span><select id="trendRank"><option value="absolute">Largest absolute change</option><option value="worsened">Most worsened</option><option value="improved">Most improved</option><option value="level">Highest 10-year level</option></select></label></div>
+        <div class="table-scroll"><table><thead><tr><th>Rank</th><th>PWSID</th><th>State</th><th>Ownership</th><th class="num">Population</th><th class="num">10-year count</th><th class="num">Previous annual avg</th><th class="num">Recent annual avg</th><th class="num">Change</th><th>Direction</th></tr></thead><tbody id="trendBody"></tbody></table></div>
+        <div class="pagination"><button id="trendPrevBtn" class="quiet-button">Previous</button><span id="trendPageLabel"></span><button id="trendNextBtn" class="quiet-button">Next</button></div>
       </section>
     </section>
 
@@ -132,7 +176,9 @@
 
   <script src="d3.min.js?v=7.9.0"></script>
   <script src="states-data.js?v=20260806-1"></script>
-  <script src="data.js?v=20260806-8"></script>
-  <script src="app.js?v=20260806-9"></script>
+  <script src="data.js?v=20260826-1"></script>
+  <script src="anomaly-data.js?v=20260826-1"></script>
+  <script src="trend-data.js?v=20260826-1"></script>
+  <script src="app.js?v=20260826-2"></script>
 </body>
 </html>

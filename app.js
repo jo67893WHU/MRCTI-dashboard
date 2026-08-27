@@ -1,12 +1,16 @@
 const DATA = window.MRCTI_DATA.utilities;
 const MODELS = window.MRCTI_DATA.models;
 const META = window.MRCTI_DATA.meta;
+const ANOMALIES = window.MRCTI_ANOMALIES;
+const TRENDS = window.MRCTI_TRENDS;
 const $ = (selector) => document.querySelector(selector);
 const fmt = new Intl.NumberFormat('en-US');
 const money = new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD', maximumFractionDigits: 0});
 const pct = new Intl.NumberFormat('en-US', {maximumFractionDigits: 2});
 
 let ui = {search: '', state: '', ownership: '', source: '', coverage: '', condition: '', mapMetric: 'count', rank: 'burden', page: 1};
+let residualUi = {outcome: 'health', direction: '', state: '', scope: 'extreme', page: 1};
+let trendUi = {outcome: 'health', ownership: '', rank: 'absolute', page: 1};
 let stateGeo = null;
 const PAGE_SIZE = 25;
 
@@ -26,6 +30,8 @@ function optionList(selector, values) {
 optionList('#stateFilter', DATA.map(d => d.st));
 optionList('#ownerFilter', DATA.map(d => d.own));
 optionList('#sourceFilter', DATA.map(d => d.src));
+optionList('#residualState', DATA.map(d => d.st));
+optionList('#trendOwnership', TRENDS.rows.map(d => d.own));
 
 function currentRows() {
   const q = ui.search.trim().toLowerCase();
@@ -200,6 +206,7 @@ function renderTable(rows) {
 }
 
 function openDetail(d) {
+  const anomaly = ANOMALIES?.byPwsid?.[d.id];
   const values = [
     ['Population served', finite(d.pop) ? fmt.format(Math.round(d.pop)) : '—'],
     ['Service connections', finite(d.conn) ? fmt.format(Math.round(d.conn)) : '—'],
@@ -210,14 +217,130 @@ function openDetail(d) {
     ['All-year total violations', finite(d.tAll) ? fmt.format(d.tAll) : '—'],
     ['Cost recovery', finite(d.recovery) ? pct.format(d.recovery) : '—'],
     ['Outstanding debt', finite(d.debt) ? money.format(d.debt * 1000) : '—'],
-    ['Data coverage', d.coverage]
+    ['Data coverage', d.coverage],
+    ['Charge model residual', anomaly ? money.format(anomaly.cRes) : '—'],
+    ['Charge residual extremeness', anomaly ? `${pct.format(anomaly.cAbsPct * 100)}th percentile` : '—'],
+    ['Health model residual', anomaly ? pct.format(anomaly.hRes) : '—'],
+    ['Health residual extremeness', anomaly ? `${pct.format(anomaly.hAbsPct * 100)}th percentile` : '—']
   ];
-  $('#drawerContent').innerHTML = `<p class="detail-kicker">UTILITY PROFILE</p><h2 class="detail-title">${d.name || 'Name unavailable'}</h2><p class="detail-id">${d.id} · ${d.st || 'State unavailable'} · ${d.own || 'Ownership unavailable'} · ${d.src || 'Source unavailable'}</p><div class="detail-table">${values.map(([k, v]) => `<div class="detail-row"><span>${k}</span><strong>${v}</strong></div>`).join('')}</div><h3 class="detail-section">Interpretation</h3><p class="definition">This profile presents observed screening variables. It does not yet include a model prediction, residual, anomaly percentile, or verified service-area geometry. Missing financial values indicate that no matching financial record was available.</p>`;
+  $('#drawerContent').innerHTML = `<p class="detail-kicker">UTILITY PROFILE</p><h2 class="detail-title">${d.name || 'Name unavailable'}</h2><p class="detail-id">${d.id} · ${d.st || 'State unavailable'} · ${d.own || 'Ownership unavailable'} · ${d.src || 'Source unavailable'}</p><div class="detail-table">${values.map(([k, v]) => `<div class="detail-row"><span>${k}</span><strong>${v}</strong></div>`).join('')}</div><h3 class="detail-section">Interpretation</h3><p class="definition">Model residuals use five-fold out-of-fold predictions from the confirmed report-era EMMA random-forest specification. They identify unusual cases for review, not causal effects or performance grades. Missing financial values indicate that no matching financial record was available.</p>`;
   $('#detailDrawer').classList.add('open');
   $('#scrim').classList.add('open');
   $('#detailDrawer').setAttribute('aria-hidden', 'false');
 }
 function closeDetail() { $('#detailDrawer').classList.remove('open'); $('#scrim').classList.remove('open'); $('#detailDrawer').setAttribute('aria-hidden', 'true'); }
+
+function quantileCap(values, q = .99) {
+  const clean = values.filter(finite).map(Number).sort(d3.ascending);
+  return clean.length ? d3.quantile(clean, q) : 1;
+}
+
+function escapeHtml(value) { return String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function renderObservedPredictedScatter(containerSelector, rows, observedKey, predictedKey, options = {}) {
+  const container = $(containerSelector);
+  container.innerHTML = '';
+  if (!rows.length) { container.innerHTML = '<div class="empty-chart">No observations for this selection.</div>'; return; }
+  const width = Math.max(420, container.clientWidth || 620), height = Math.max(310, container.clientHeight || 340);
+  const margin = {top: 18, right: 18, bottom: 42, left: 54};
+  const cap = Math.max(1, quantileCap(rows.flatMap(d => [d[observedKey], d[predictedKey]])));
+  const x = d3.scaleLinear().domain([0, cap]).nice().range([margin.left, width - margin.right]);
+  const y = d3.scaleLinear().domain([0, cap]).nice().range([height - margin.bottom, margin.top]);
+  const svg = d3.select(container).append('svg').attr('viewBox', `0 0 ${width} ${height}`);
+  const tooltip = d3.select(container).append('div').attr('class', 'chart-tooltip point-tooltip').style('display', 'none');
+  svg.append('line').attr('class', 'identity-line').attr('x1', x(0)).attr('y1', y(0)).attr('x2', x(cap)).attr('y2', y(cap));
+  const stride = Math.max(1, Math.ceil(rows.length / 4500));
+  svg.append('g').selectAll('circle').data(rows.filter((_, i) => i % stride === 0)).join('circle')
+    .attr('cx', d => x(Math.min(cap, d[predictedKey]))).attr('cy', d => y(Math.min(cap, d[observedKey])))
+    .attr('r', 2.4).attr('tabindex', 0).attr('class', d => d.residual >= 0 ? 'residual-point positive' : 'residual-point negative')
+    .on('click', function(event, d) {
+      const rect = container.getBoundingClientRect();
+      tooltip.style('display', 'block').style('left', `${event.clientX - rect.left + 10}px`).style('top', `${event.clientY - rect.top + 10}px`)
+        .html(options.tooltip ? options.tooltip(d) : `<strong>${escapeHtml(d.name || d.id || 'Selected record')}</strong><br>Observed: ${Number(d[observedKey]).toFixed(2)}<br>Expected: ${Number(d[predictedKey]).toFixed(2)}<br>Difference: ${Number(d.residual).toFixed(2)}`);
+      svg.selectAll('.residual-point').classed('selected-point', false); d3.select(this).classed('selected-point', true);
+      if (options.onSelect) options.onSelect(d);
+      event.stopPropagation();
+    });
+  svg.on('click', () => { tooltip.style('display', 'none'); svg.selectAll('.residual-point').classed('selected-point', false); });
+  svg.append('g').attr('class', 'axis').attr('transform', `translate(0,${height - margin.bottom})`).call(d3.axisBottom(x).ticks(5));
+  svg.append('g').attr('class', 'axis').attr('transform', `translate(${margin.left},0)`).call(d3.axisLeft(y).ticks(5));
+  svg.append('text').attr('x', (margin.left + width - margin.right) / 2).attr('y', height - 5).attr('text-anchor', 'middle').attr('class', 'axis-label').text('Expected / preceding period');
+  svg.append('text').attr('transform', 'rotate(-90)').attr('x', -(margin.top + height - margin.bottom) / 2).attr('y', 13).attr('text-anchor', 'middle').attr('class', 'axis-label').text('Observed / recent period');
+}
+
+function residualRows() {
+  const prefix = residualUi.outcome === 'charge' ? 'c' : 'h';
+  return DATA.map(d => {
+    const a = ANOMALIES?.byPwsid?.[d.id];
+    return a ? {...d, observed: a[`${prefix}Obs`], predicted: a[`${prefix}Pred`], residual: a[`${prefix}Res`], absPct: a[`${prefix}AbsPct`]} : null;
+  }).filter(Boolean).filter(d => !residualUi.state || d.st === residualUi.state)
+    .filter(d => !residualUi.direction || (residualUi.direction === 'positive' ? d.residual > 0 : d.residual < 0));
+}
+
+function renderResiduals() {
+  if (!ANOMALIES?.byPwsid) {
+    $('#residualStatus').innerHTML = `<strong>Residual dataset unavailable</strong><span>${ANOMALIES?.reason || 'PWSID-level predictions have not been generated.'}</span>`;
+    $('#residualWorkspace').hidden = true;
+    return;
+  }
+  $('#residualWorkspace').hidden = false;
+  const metric = ANOMALIES.meta[residualUi.outcome];
+  $('#residualStatus').innerHTML = `<div><span class="status-tag verified">Reproduced</span><strong>Report-era EMMA model</strong></div><span>5-fold out-of-fold predictions · N ${fmt.format(metric.n)} · CV R² ${metric.cvR2.toFixed(3)} · RMSE ${metric.cvRmse.toFixed(3)} · MAE ${metric.cvMae.toFixed(3)}</span>`;
+  const base = residualRows();
+  const extreme = base.filter(d => d.absPct >= ANOMALIES.meta.flagThreshold);
+  const rows = (residualUi.scope === 'extreme' ? extreme : base).sort((a, b) => b.absPct - a.absPct);
+  const medianAbs = median(base.map(d => Math.abs(d.residual)));
+  const summaries = [
+    ['Modeled utilities', fmt.format(base.length), 'After state and direction filters'],
+    ['Extreme cases', fmt.format(extreme.length), 'Top 5% by absolute residual'],
+    ['Above expectation', fmt.format(extreme.filter(d => d.residual > 0).length), 'Positive extreme residuals'],
+    ['Median absolute residual', residualUi.outcome === 'charge' ? money.format(medianAbs) : pct.format(medianAbs), 'Typical model deviation']
+  ];
+  $('#residualSummary').innerHTML = summaries.map(([l,v,c]) => `<div class="summary-item"><span class="summary-label">${l}</span><strong class="summary-value">${v}</strong><span class="summary-context">${c}</span></div>`).join('');
+  const value = v => residualUi.outcome === 'charge' ? money.format(v) : pct.format(v);
+  renderObservedPredictedScatter('#residualScatter', rows, 'observed', 'predicted', {
+    tooltip: d => `<strong>${escapeHtml(d.name || 'Name unavailable')}</strong><br>${escapeHtml(d.id)} · ${escapeHtml(d.st || 'State unavailable')}<br>Observed: ${value(d.observed)}<br>Expected: ${value(d.predicted)}<br>Residual: ${d.residual >= 0 ? '+' : ''}${value(d.residual)}`
+  });
+  $('#residualFigureNote').textContent = 'The diagonal represents observed = expected. Blue points are above model expectation; ochre points are below. Axes are capped at the 99th percentile for legibility.';
+  const pages = Math.max(1, Math.ceil(rows.length / 5)); residualUi.page = Math.min(residualUi.page, pages);
+  const start = (residualUi.page - 1) * 5;
+  const top = rows.slice(start, start + 5);
+  $('#residualBody').innerHTML = top.map((d, i) => `<tr data-id="${d.id}"><td>${i+1}</td><td><span class="record-name">${d.name || 'Name unavailable'}</span><span class="record-id">${d.id}</span></td><td>${d.st || '—'}</td><td>${d.own || '—'}</td><td class="num">${value(d.observed)}</td><td class="num">${value(d.predicted)}</td><td class="num residual-${d.residual >= 0 ? 'positive' : 'negative'}">${d.residual >= 0 ? '+' : ''}${value(d.residual)}</td><td class="num">${pct.format(d.absPct * 100)}%</td></tr>`).join('');
+  $('#residualResultCount').textContent = `Showing ${rows.length ? start + 1 : 0}–${Math.min(start + 5, rows.length)} of ${fmt.format(rows.length)} records in this selection.`;
+  $('#residualPageLabel').textContent = `Page ${residualUi.page} of ${pages}`;
+  $('#residualPrevBtn').disabled = residualUi.page === 1; $('#residualNextBtn').disabled = residualUi.page === pages;
+  document.querySelectorAll('#residualBody tr').forEach(row => row.addEventListener('click', () => openDetail(DATA.find(d => d.id === row.dataset.id))));
+}
+
+function renderTrends() {
+  const rows = TRENDS.rows.filter(d => !trendUi.ownership || d.own === trendUi.ownership);
+  const prefix = trendUi.outcome === 'health' ? 'h' : 't';
+  const improved = rows.filter(d => d[`${prefix}Delta`] < 0).length, worsened = rows.filter(d => d[`${prefix}Delta`] > 0).length;
+  const unchanged = rows.length - improved - worsened;
+  $('#trendSummary').innerHTML = [
+    ['Compared PWSIDs', fmt.format(rows.length), TRENDS.meta.source],
+    ['Improved', `${pct.format(improved / rows.length * 100)}%`, `${fmt.format(improved)} systems`],
+    ['Worsened', `${pct.format(worsened / rows.length * 100)}%`, `${fmt.format(worsened)} systems`],
+    ['No change', `${pct.format(unchanged / rows.length * 100)}%`, `${fmt.format(unchanged)} systems`]
+  ].map(([l,v,c]) => `<div class="summary-item"><span class="summary-label">${l}</span><strong class="summary-value">${v}</strong><span class="summary-context">${c}</span></div>`).join('');
+  renderObservedPredictedScatter('#trendScatter', rows.map(d => ({...d, ...DATA.find(x => x.id === d.id), predicted:d[`${prefix}Prev`], observed:d[`${prefix}Recent`], residual:d[`${prefix}Delta`]})), 'observed', 'predicted', {
+    tooltip: d => `<strong>${escapeHtml(d.name || 'Name unavailable')}</strong><br>${escapeHtml(d.id)} · ${escapeHtml(d.own || 'Ownership unavailable')}<br>Previous annual avg: ${pct.format(d.predicted)}<br>Recent annual avg: ${pct.format(d.observed)}<br>Change: ${d.residual > 0 ? '+' : ''}${pct.format(d.residual)}`,
+    onSelect: d => {
+      const direction = d.residual < 0 ? 'Improved' : d.residual > 0 ? 'Worsened' : 'No change';
+      $('#trendPointDetail').innerHTML = `<p class="kicker">SELECTED RECORD</p><h3>${escapeHtml(d.name || 'Name unavailable')}</h3><p>${escapeHtml(d.id)} · ${escapeHtml(d.st || 'State unavailable')} · ${escapeHtml(d.own || 'Ownership unavailable')}</p><dl><div><dt>Previous annual avg</dt><dd>${pct.format(d.predicted)}</dd></div><div><dt>Recent annual avg</dt><dd>${pct.format(d.observed)}</dd></div><div><dt>Change</dt><dd class="residual-${d.residual >= 0 ? 'positive' : 'negative'}">${d.residual > 0 ? '+' : ''}${pct.format(d.residual)}</dd></div><div><dt>Direction</dt><dd>${direction}</dd></div></dl><button class="quiet-button point-profile-button">Open utility profile</button>`;
+      $('#trendPointDetail .point-profile-button').addEventListener('click', () => { const record = DATA.find(x => x.id === d.id); if (record) openDetail(record); });
+    }
+  });
+  const rankValue = d => trendUi.rank === 'worsened' ? d[`${prefix}Delta`] : trendUi.rank === 'improved' ? -d[`${prefix}Delta`] : trendUi.rank === 'level' ? d[`${prefix}10`] : Math.abs(d[`${prefix}Delta`]);
+  const sorted = [...rows].sort((a,b) => rankValue(b)-rankValue(a));
+  const pages = Math.max(1, Math.ceil(sorted.length/PAGE_SIZE)); trendUi.page=Math.min(trendUi.page,pages);
+  const start=(trendUi.page-1)*PAGE_SIZE, pageRows=sorted.slice(start,start+PAGE_SIZE);
+  $('#trendBody').innerHTML = pageRows.map((d,i) => { const delta=d[`${prefix}Delta`]; return `<tr><td>${start+i+1}</td><td>${d.id}</td><td>${d.st||'—'}</td><td>${d.own||'—'}</td><td class="num">${finite(d.pop)?fmt.format(d.pop):'—'}</td><td class="num">${fmt.format(d[`${prefix}10`])}</td><td class="num">${pct.format(d[`${prefix}Prev`])}</td><td class="num">${pct.format(d[`${prefix}Recent`])}</td><td class="num residual-${delta>=0?'positive':'negative'}">${delta>0?'+':''}${pct.format(delta)}</td><td>${delta<0?'Improved':delta>0?'Worsened':'No change'}</td></tr>`; }).join('');
+  $('#trendResultCount').textContent=`${fmt.format(sorted.length)} PWSIDs after ownership filter`; $('#trendPageLabel').textContent=`Page ${trendUi.page} of ${pages}`;
+  $('#trendPrevBtn').disabled=trendUi.page===1; $('#trendNextBtn').disabled=trendUi.page===pages;
+}
+
+function renderOutliers() { renderResiduals(); renderTrends(); }
 
 function renderModels() {
   const layer = $('#modelLayer').value;
@@ -234,7 +357,28 @@ document.querySelectorAll('.nav-item').forEach(button => button.addEventListener
     setTimeout(() => { renderMap(currentRows()); renderHistogram(currentRows()); }, 0);
     setTimeout(() => { renderMap(currentRows()); }, 180);
   }
+  if (button.dataset.view === 'outliers') setTimeout(renderOutliers, 0);
 }));
+
+[
+  ['#residualOutcome', 'outcome'], ['#residualDirection', 'direction'],
+  ['#residualState', 'state'], ['#residualScope', 'scope']
+].forEach(([selector, key]) => $(selector).addEventListener('change', event => {
+  residualUi[key] = event.target.value;
+  residualUi.page = 1;
+  renderResiduals();
+}));
+$('#residualPrevBtn').addEventListener('click', () => { residualUi.page--; renderResiduals(); });
+$('#residualNextBtn').addEventListener('click', () => { residualUi.page++; renderResiduals(); });
+[
+  ['#trendOutcome', 'outcome'], ['#trendOwnership', 'ownership'], ['#trendRank', 'rank']
+].forEach(([selector, key]) => $(selector).addEventListener('change', event => {
+  trendUi[key] = event.target.value;
+  trendUi.page = 1;
+  renderTrends();
+}));
+$('#trendPrevBtn').addEventListener('click', () => { trendUi.page--; renderTrends(); });
+$('#trendNextBtn').addEventListener('click', () => { trendUi.page++; renderTrends(); });
 
 [
   ['#search', 'search', 'input'], ['#stateFilter', 'state', 'change'], ['#ownerFilter', 'ownership', 'change'],
@@ -302,6 +446,7 @@ function renderCoreModels() {
 
 renderModels();
 renderCoreModels();
+renderOutliers();
 render();
 if (window.MRCTI_STATES) {
   stateGeo = rewindForD3(window.MRCTI_STATES);
