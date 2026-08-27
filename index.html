@@ -7,7 +7,7 @@
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
   <title>MRCTI National Water Utility Observatory</title>
-  <link rel="stylesheet" href="styles.css?v=20260826-3">
+  <link rel="stylesheet" href="styles.css?v=20260827-1">
 </head>
 <body>
   <header class="app-header">
@@ -34,7 +34,7 @@
 
       <div class="scope-note">
         <span class="scope-label">Analytical scope</span>
-        <span>EMMA is the national base layer. Public and private financial records are shown only where a PWSID-level match is available. Model residuals are not yet included.</span>
+        <span>EMMA is the national base layer. Public and private financial records are shown only where a PWSID-level match is available. The Outliers &amp; Trends workspace provides confirmed EMMA residual screens for annual charge and 10-year health violations.</span>
       </div>
 
       <section class="filter-block" aria-label="Utility filters">
@@ -44,7 +44,7 @@
           <label class="field"><span>Ownership</span><select id="ownerFilter"><option value="">All ownership</option></select></label>
           <label class="field"><span>Source</span><select id="sourceFilter"><option value="">All sources</option></select></label>
           <label class="field"><span>Data layer</span><select id="coverageFilter"><option value="">All records</option><option>EMMA only</option><option>Public financial</option><option>Private financial</option></select></label>
-          <label class="field"><span>Screen condition</span><select id="riskFilter"><option value="">No condition</option><option value="open">Open health violation</option><option value="burden">Charge burden ≥ 2%</option><option value="health10">Any 10-year health violation</option><option value="recovery">Cost recovery &lt; 1</option></select></label>
+          <label class="field"><span>Screen condition</span><select id="riskFilter"><option value="">No condition</option><option value="open">Open health violation</option><option value="burden">Charge burden ≥ 2%</option><option value="health10">Any 10-year health violation</option><option value="recovery">Reported revenue/expense ratio &lt; 1</option></select></label>
         </div>
       </section>
 
@@ -65,7 +65,7 @@
       </section>
 
       <section class="analysis-section ranking-section">
-        <div class="section-heading table-heading"><div><p class="kicker">UTILITY-LEVEL RECORDS</p><h2>Ranked screening table</h2><p id="resultCount" class="subtext"></p></div><label class="field compact"><span>Rank by</span><select id="rankMetric"><option value="burden">Charge burden</option><option value="h10">10-year health violations</option><option value="tAll">All-year total violations</option><option value="charge">Annual charge</option><option value="pop">Population served</option><option value="recoveryAsc">Lowest cost recovery</option></select></label></div>
+        <div class="section-heading table-heading"><div><p class="kicker">UTILITY-LEVEL RECORDS</p><h2>Ranked screening table</h2><p id="resultCount" class="subtext"></p></div><label class="field compact"><span>Rank by</span><select id="rankMetric"><option value="burden">Charge burden</option><option value="h10">10-year health violations</option><option value="tAll">All-year total violations</option><option value="charge">Annual charge</option><option value="pop">Population served</option><option value="recoveryAsc">Lowest reported revenue/expense ratio</option></select></label></div>
         <div class="table-scroll"><table><thead><tr><th>Rank</th><th>Utility record</th><th>State</th><th>Ownership</th><th class="num">Population</th><th class="num">Annual charge</th><th class="num">Burden</th><th class="num">10y health</th><th>Coverage</th></tr></thead><tbody id="resultsBody"></tbody></table></div>
         <div class="pagination"><button id="prevBtn" class="quiet-button">Previous</button><span id="pageLabel"></span><button id="nextBtn" class="quiet-button">Next</button></div>
       </section>
@@ -77,8 +77,9 @@
 
       <section class="analysis-section residual-section" id="residualWorkspace">
         <div class="section-heading table-heading">
-          <div><p class="kicker">EMMA · MODEL-RELATIVE SCREEN</p><h2>Out-of-fold residuals by PWSID</h2><p class="subtext">Residual = observed − cross-validated prediction. Large absolute residuals identify systems furthest from the fitted regression surface.</p></div>
+          <div><p class="kicker">EMMA · MODEL-RELATIVE SCREEN</p><h2>Out-of-fold residuals by PWSID</h2><p class="subtext">Residual = observed − cross-validated prediction. Large absolute residuals identify systems furthest from the fitted regression surface. Percentile flags are screening thresholds, not confidence intervals.</p></div>
           <div class="evidence-controls residual-controls">
+            <label class="field residual-search-field"><span>Search</span><input id="residualSearch" type="search" placeholder="PWSID or available utility name"></label>
             <label class="field dataset-field"><span>Outcome</span><select id="residualOutcome"><option value="health">10-year health violations</option><option value="charge">Annual water charge</option></select></label>
             <label class="field dataset-field"><span>Direction</span><select id="residualDirection"><option value="">Both directions</option><option value="positive">Above model expectation</option><option value="negative">Below model expectation</option></select></label>
             <label class="field dataset-field"><span>State</span><select id="residualState"><option value="">All states</option></select></label>
@@ -94,7 +95,7 @@
 
       <section class="analysis-section trend-section">
         <div class="section-heading table-heading">
-          <div><p class="kicker">AVAILABLE NOW · COMBINED SCREEN</p><h2>Recent five years versus preceding five years</h2><p class="subtext">Positive change means the annual violation average worsened; negative change means it improved.</p></div>
+          <div><p class="kicker">INTERIM · COMBINED SUBSET</p><h2>Recent five years versus preceding five years</h2><p class="subtext">Positive change means the annual violation average worsened; negative change means it improved. This interim comparison covers PWSIDs available in combinedscaled.xlsx; national all-PWSID coverage is pending an additional dataset.</p></div>
           <div class="evidence-controls">
             <label class="field dataset-field"><span>Outcome</span><select id="trendOutcome"><option value="health">Health violations</option><option value="total">Total violations</option></select></label>
             <label class="field dataset-field"><span>Ownership</span><select id="trendOwnership"><option value="">All ownership</option></select></label>
@@ -147,15 +148,15 @@
 
     <section id="modelsLegacyView" class="view legacy-model-view">
       <div class="page-heading"><div><p class="kicker">REPRODUCED REPORT OUTPUTS</p><h1>Model evidence</h1><p class="heading-note">Performance summaries recovered from the report-era random-forest output workbooks.</p></div></div>
-      <div class="scope-note model-note"><span class="scope-label">Interpretation boundary</span><span>These are model-level validation results, not utility-level anomaly scores. A residual screen requires offline prediction and residual calculations by PWSID.</span></div>
+      <div class="scope-note model-note"><span class="scope-label">Interpretation boundary</span><span>These are model-level validation results. The utility-level screen uses five-fold out-of-fold predictions and residual percentiles for confirmed EMMA outcomes; it does not present model confidence intervals.</span></div>
       <section class="analysis-section">
         <div class="section-heading table-heading"><div><p class="kicker">VALIDATION SUMMARY</p><h2>Available response models</h2></div><label class="field compact"><span>Layer</span><select id="modelLayer"><option value="">All layers</option><option>EMMA</option><option>Public</option><option>Private</option><option>Combined</option></select></label></div>
         <div class="table-scroll"><table><thead><tr><th>Layer</th><th>Outcome</th><th class="num">Observations</th><th class="num">Features</th><th class="num">Train R²</th><th class="num">CV R²</th><th class="num">CV RMSE</th><th class="num">CV MAE</th></tr></thead><tbody id="modelBody"></tbody></table></div>
       </section>
       <section class="evidence-grid">
         <article><h3>Available now</h3><p>Model performance, feature importance, aggregated SHAP, state-level SHAP, partial dependence, interaction diagnostics, and H-statistics.</p></article>
-        <article><h3>Required for anomaly screening</h3><p>Observed and predicted values, residuals, peer percentiles, flags, and model-version identifiers at the PWSID level.</p></article>
-        <article><h3>Recommended first release</h3><p>Average annual charge and 10-year health violations, calculated offline and validated before publication.</p></article>
+        <article><h3>Available anomaly records</h3><p>Observed and out-of-fold predicted values, residuals, absolute-residual percentiles, flags, and model-version metadata at the PWSID level.</p></article>
+        <article><h3>Current screening release</h3><p>Average annual charge and 10-year health violations, calculated offline and validated against the report-era model metrics.</p></article>
       </section>
     </section>
 
@@ -164,7 +165,7 @@
       <section class="methods-layout">
         <article><h2>Coverage architecture</h2><dl><div><dt>EMMA national layer</dt><dd>43,531 unique PWSID records in the confirmed February input.</dd></div><div><dt>Public financial overlay</dt><dd>7,968 PWSID matches in the dashboard join.</dd></div><div><dt>Private financial overlay</dt><dd>233 national PWSID matches from the 277-row dfpvt model table after identifiers were uniquely reconciled from privatescaled.</dd></div></dl></article>
         <article><h2>Geography</h2><p>The state map uses the stored 2018 Census state GeoJSON. No CWS service-area polygons or utility coordinates were found in the project directories, so the map does not imply utility-level location or service boundaries.</p></article>
-        <article><h2>Interpretation</h2><p>Charge burden is annual average water charge divided by median household income. It is a screening ratio, not a formal affordability determination. Missing financial data means “not matched,” not zero.</p></article>
+        <article><h2>Interpretation</h2><p>Charge burden is annual average water charge divided by median household income. It is a screening ratio, not a formal affordability determination. The reported revenue-to-expense ratio describes available reporting-year records; a value below 1 does not by itself establish financial distress. Missing financial data means “not matched,” not zero.</p></article>
         <article><h2>Unit of analysis</h2><p>The primary analytical unit is the community water system identified by PWSID. MRCTI city-level aggregation is not performed, and city-to-PWSID correspondence still requires a validated crosswalk.</p></article>
       </section>
     </section>
@@ -179,6 +180,6 @@
   <script src="data.js?v=20260826-1"></script>
   <script src="anomaly-data.js?v=20260826-1"></script>
   <script src="trend-data.js?v=20260826-1"></script>
-  <script src="app.js?v=20260826-2"></script>
+  <script src="app.js?v=20260827-1"></script>
 </body>
 </html>

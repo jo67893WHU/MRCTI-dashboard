@@ -46,7 +46,7 @@ residual = observed value - out-of-fold predicted value
 
 Predictions are generated using five-fold cross-validation. Large absolute residuals identify records furthest from the fitted regression surface. Positive residuals are above model expectation; negative residuals are below model expectation. The default extreme group is the top 5% by absolute residual.
 
-The trends screen compares:
+The interim trends screen uses the PWSIDs currently available in `combinedscaled.xlsx`; national all-PWSID coverage is pending an additional dataset. It compares:
 
 ```text
 recent annual average = five-year count / 5
@@ -72,7 +72,9 @@ Documents scope, variable definitions, data lineage, matching rules, and major i
 - Ten-year violations may include events occurring before a later acquisition or ownership change.
 - Private financial information may be consolidated at company level, whereas violations are associated with PWSIDs.
 - Missing financial fields mean that no corresponding financial record was available under the implemented matching rules.
+- The reported revenue-to-expense ratio describes the available reporting-year fields. A value below 1 does not by itself establish financial distress.
 - Extreme residuals are review candidates, not proof of good or poor management.
+- Residual percentile thresholds are screening rules, not prediction or confidence intervals.
 
 ## Reproduced EMMA model checks
 
@@ -100,6 +102,23 @@ d3.min.js              Local D3 dependency
 assets/                Model-evidence figures and supporting assets
 ```
 
+## Run locally
+
+No server-side application or database is required. The dashboard is a static site, but it should be opened through a local web server rather than by double-clicking `index.html`.
+
+From the repository directory:
+
+```bash
+python -m http.server 8765 --bind 127.0.0.1
+```
+
+Then open:
+
+```text
+http://127.0.0.1:8765/
+```
+
+Stop the server with `Ctrl + C` in the terminal where it is running. The port number may be changed if `8765` is already in use.
 
 ## GitHub Pages deployment
 
@@ -115,4 +134,3 @@ When updating the site, replace the relevant files, commit the changes, and push
 ## Responsible interpretation
 
 Results should be used to identify cases for additional investigation. Any substantive conclusion about a utility should be checked against the underlying record, reporting period, ownership history, service-area context, and source-data limitations.
-

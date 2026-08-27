@@ -9,7 +9,7 @@ const money = new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD'
 const pct = new Intl.NumberFormat('en-US', {maximumFractionDigits: 2});
 
 let ui = {search: '', state: '', ownership: '', source: '', coverage: '', condition: '', mapMetric: 'count', rank: 'burden', page: 1};
-let residualUi = {outcome: 'health', direction: '', state: '', scope: 'extreme', page: 1};
+let residualUi = {search: '', outcome: 'health', direction: '', state: '', scope: 'extreme', page: 1};
 let trendUi = {outcome: 'health', ownership: '', rank: 'absolute', page: 1};
 let stateGeo = null;
 const PAGE_SIZE = 25;
@@ -215,7 +215,7 @@ function openDetail(d) {
     ['Charge burden', finite(d.burden) ? `${pct.format(d.burden)}%` : '—'],
     ['10-year health violations', finite(d.h10) ? fmt.format(d.h10) : '—'],
     ['All-year total violations', finite(d.tAll) ? fmt.format(d.tAll) : '—'],
-    ['Cost recovery', finite(d.recovery) ? pct.format(d.recovery) : '—'],
+    ['Reported revenue-to-expense ratio', finite(d.recovery) ? pct.format(d.recovery) : '—'],
     ['Outstanding debt', finite(d.debt) ? money.format(d.debt * 1000) : '—'],
     ['Data coverage', d.coverage],
     ['Charge model residual', anomaly ? money.format(anomaly.cRes) : '—'],
@@ -223,7 +223,7 @@ function openDetail(d) {
     ['Health model residual', anomaly ? pct.format(anomaly.hRes) : '—'],
     ['Health residual extremeness', anomaly ? `${pct.format(anomaly.hAbsPct * 100)}th percentile` : '—']
   ];
-  $('#drawerContent').innerHTML = `<p class="detail-kicker">UTILITY PROFILE</p><h2 class="detail-title">${d.name || 'Name unavailable'}</h2><p class="detail-id">${d.id} · ${d.st || 'State unavailable'} · ${d.own || 'Ownership unavailable'} · ${d.src || 'Source unavailable'}</p><div class="detail-table">${values.map(([k, v]) => `<div class="detail-row"><span>${k}</span><strong>${v}</strong></div>`).join('')}</div><h3 class="detail-section">Interpretation</h3><p class="definition">Model residuals use five-fold out-of-fold predictions from the confirmed report-era EMMA random-forest specification. They identify unusual cases for review, not causal effects or performance grades. Missing financial values indicate that no matching financial record was available.</p>`;
+  $('#drawerContent').innerHTML = `<p class="detail-kicker">UTILITY PROFILE</p><h2 class="detail-title">${d.name || 'Name unavailable'}</h2><p class="detail-id">${d.id} · ${d.st || 'State unavailable'} · ${d.own || 'Ownership unavailable'} · ${d.src || 'Source unavailable'}</p><div class="detail-table">${values.map(([k, v]) => `<div class="detail-row"><span>${k}</span><strong>${v}</strong></div>`).join('')}</div><h3 class="detail-section">Interpretation</h3><p class="definition">Model residuals use five-fold out-of-fold predictions from the confirmed report-era EMMA random-forest specification. Residual percentiles are screening thresholds, not confidence intervals, causal effects, or performance grades. The reported revenue-to-expense ratio describes available reporting-year records and does not by itself establish financial distress. Missing financial values indicate that no matching financial record was available.</p>`;
   $('#detailDrawer').classList.add('open');
   $('#scrim').classList.add('open');
   $('#detailDrawer').setAttribute('aria-hidden', 'false');
@@ -270,10 +270,12 @@ function renderObservedPredictedScatter(containerSelector, rows, observedKey, pr
 
 function residualRows() {
   const prefix = residualUi.outcome === 'charge' ? 'c' : 'h';
+  const q = residualUi.search.trim().toLowerCase();
   return DATA.map(d => {
     const a = ANOMALIES?.byPwsid?.[d.id];
     return a ? {...d, observed: a[`${prefix}Obs`], predicted: a[`${prefix}Pred`], residual: a[`${prefix}Res`], absPct: a[`${prefix}AbsPct`]} : null;
-  }).filter(Boolean).filter(d => !residualUi.state || d.st === residualUi.state)
+  }).filter(Boolean).filter(d => !q || d.id.toLowerCase().includes(q) || (d.name || '').toLowerCase().includes(q))
+    .filter(d => !residualUi.state || d.st === residualUi.state)
     .filter(d => !residualUi.direction || (residualUi.direction === 'positive' ? d.residual > 0 : d.residual < 0));
 }
 
@@ -290,10 +292,12 @@ function renderResiduals() {
   const extreme = base.filter(d => d.absPct >= ANOMALIES.meta.flagThreshold);
   const rows = (residualUi.scope === 'extreme' ? extreme : base).sort((a, b) => b.absPct - a.absPct);
   const medianAbs = median(base.map(d => Math.abs(d.residual)));
+  const positiveMeaning = residualUi.outcome === 'charge' ? 'Higher charge than expected' : 'Higher violations than expected';
+  const negativeMeaning = residualUi.outcome === 'charge' ? 'Lower charge than expected' : 'Lower violations than expected';
   const summaries = [
     ['Modeled utilities', fmt.format(base.length), 'After state and direction filters'],
     ['Extreme cases', fmt.format(extreme.length), 'Top 5% by absolute residual'],
-    ['Above expectation', fmt.format(extreme.filter(d => d.residual > 0).length), 'Positive extreme residuals'],
+    [positiveMeaning, fmt.format(extreme.filter(d => d.residual > 0).length), 'Positive extreme residuals'],
     ['Median absolute residual', residualUi.outcome === 'charge' ? money.format(medianAbs) : pct.format(medianAbs), 'Typical model deviation']
   ];
   $('#residualSummary').innerHTML = summaries.map(([l,v,c]) => `<div class="summary-item"><span class="summary-label">${l}</span><strong class="summary-value">${v}</strong><span class="summary-context">${c}</span></div>`).join('');
@@ -301,7 +305,7 @@ function renderResiduals() {
   renderObservedPredictedScatter('#residualScatter', rows, 'observed', 'predicted', {
     tooltip: d => `<strong>${escapeHtml(d.name || 'Name unavailable')}</strong><br>${escapeHtml(d.id)} · ${escapeHtml(d.st || 'State unavailable')}<br>Observed: ${value(d.observed)}<br>Expected: ${value(d.predicted)}<br>Residual: ${d.residual >= 0 ? '+' : ''}${value(d.residual)}`
   });
-  $('#residualFigureNote').textContent = 'The diagonal represents observed = expected. Blue points are above model expectation; ochre points are below. Axes are capped at the 99th percentile for legibility.';
+  $('#residualFigureNote').textContent = `The diagonal represents observed = expected. Blue points indicate ${positiveMeaning.toLowerCase()}; ochre points indicate ${negativeMeaning.toLowerCase()}. These are screening percentiles, not confidence intervals. Axes are capped at the 99th percentile for legibility.`;
   const pages = Math.max(1, Math.ceil(rows.length / 5)); residualUi.page = Math.min(residualUi.page, pages);
   const start = (residualUi.page - 1) * 5;
   const top = rows.slice(start, start + 5);
@@ -361,9 +365,10 @@ document.querySelectorAll('.nav-item').forEach(button => button.addEventListener
 }));
 
 [
+  ['#residualSearch', 'search'],
   ['#residualOutcome', 'outcome'], ['#residualDirection', 'direction'],
   ['#residualState', 'state'], ['#residualScope', 'scope']
-].forEach(([selector, key]) => $(selector).addEventListener('change', event => {
+].forEach(([selector, key]) => $(selector).addEventListener(selector === '#residualSearch' ? 'input' : 'change', event => {
   residualUi[key] = event.target.value;
   residualUi.page = 1;
   renderResiduals();
