@@ -100,23 +100,6 @@ d3.min.js              Local D3 dependency
 assets/                Model-evidence figures and supporting assets
 ```
 
-## Run locally
-
-No server-side application or database is required. The dashboard is a static site, but it should be opened through a local web server rather than by double-clicking `index.html`.
-
-From the repository directory:
-
-```bash
-python -m http.server 8765 --bind 127.0.0.1
-```
-
-Then open:
-
-```text
-http://127.0.0.1:8765/
-```
-
-Stop the server with `Ctrl + C` in the terminal where it is running. The port number may be changed if `8765` is already in use.
 
 ## GitHub Pages deployment
 
