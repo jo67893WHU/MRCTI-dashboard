@@ -1,15 +1,19 @@
-const DATA = window.MRCTI_DATA.utilities;
+const PRIVATE_COMPANIES = window.MRCTI_PRIVATE_COMPANIES?.rows || [];
+const RIK_DATA = PRIVATE_COMPANIES.map(d => ({id:d.id, name:d.name, st:d.state, own:'Private', src:null, pop:d.population, conn:null, charge:d.charge, mhi:null, burden:null, h5:d.health5, h10:d.health10, t5:d.total5, tAll:d.total10, recovery:d.costRecovery, debt:null, coverage:'Private financial', open:null, isSyntheticPwsid:true}));
+const DATA = [...window.MRCTI_DATA.utilities, ...RIK_DATA];
+const DATA_BY_ID = new Map(DATA.map(record => [record.id, record]));
 const MODELS = window.MRCTI_DATA.models;
 const META = window.MRCTI_DATA.meta;
 const ANOMALIES = window.MRCTI_ANOMALIES;
 const TRENDS = window.MRCTI_TRENDS;
+const RIK_TRENDS = RIK_DATA.map(d => ({id:d.id, name:d.name, st:d.st, own:d.own, pop:d.pop, h10:d.h10, hPrev:(d.h10-d.h5)/5, hRecent:d.h5/5, hDelta:(2*d.h5-d.h10)/5, t10:d.tAll, tPrev:(d.tAll-d.t5)/5, tRecent:d.t5/5, tDelta:(2*d.t5-d.tAll)/5, isSyntheticPwsid:true}));
 const $ = (selector) => document.querySelector(selector);
 const fmt = new Intl.NumberFormat('en-US');
 const money = new Intl.NumberFormat('en-US', {style: 'currency', currency: 'USD', maximumFractionDigits: 0});
 const pct = new Intl.NumberFormat('en-US', {maximumFractionDigits: 2});
 
 let ui = {search: '', state: '', ownership: '', source: '', coverage: '', condition: '', mapMetric: 'count', rank: 'burden', page: 1};
-let residualUi = {search: '', outcome: 'health', direction: '', state: '', scope: 'extreme', page: 1};
+let residualUi = {search: '', healthFilter: 'extreme', chargeFilter: 'any', state: '', page: 1};
 let trendUi = {outcome: 'health', ownership: '', rank: 'absolute', page: 1};
 let stateGeo = null;
 const PAGE_SIZE = 25;
@@ -62,7 +66,7 @@ function renderSummary(rows) {
   const burdenValues = rows.map(d => d.burden).filter(finite);
   const financial = rows.filter(d => d.coverage !== 'EMMA only').length;
   const summaries = [
-    ['Utility records', fmt.format(rows.length), `${pct.format(rows.length / META.uniqueUtilities * 100)}% of national base`],
+    ['Utility records', fmt.format(rows.length), `${pct.format(rows.length / (META.uniqueUtilities + RIK_DATA.length) * 100)}% of available records`],
     ['Population served', fmt.format(Math.round(population)), 'Sum of selected system populations'],
     ['Median charge burden', burdenValues.length ? `${pct.format(median(burdenValues))}%` : '—', `${fmt.format(burdenValues.length)} records with charge and income`],
     ['Financial data coverage', rows.length ? `${pct.format(financial / rows.length * 100)}%` : '—', `${fmt.format(financial)} utilities with matched financial records`]
@@ -213,7 +217,9 @@ function openDetail(d) {
     ['Annual average charge', finite(d.charge) ? money.format(d.charge) : '—'],
     ['Median household income', finite(d.mhi) ? money.format(d.mhi) : '—'],
     ['Charge burden', finite(d.burden) ? `${pct.format(d.burden)}%` : '—'],
+    ['5-year health violations', finite(d.h5) ? fmt.format(d.h5) : '—'],
     ['10-year health violations', finite(d.h10) ? fmt.format(d.h10) : '—'],
+    ['5-year total violations', finite(d.t5) ? fmt.format(d.t5) : '—'],
     ['All-year total violations', finite(d.tAll) ? fmt.format(d.tAll) : '—'],
     ['Reported revenue-to-expense ratio', finite(d.recovery) ? pct.format(d.recovery) : '—'],
     ['Outstanding debt', finite(d.debt) ? money.format(d.debt * 1000) : '—'],
@@ -223,7 +229,8 @@ function openDetail(d) {
     ['Health model residual', anomaly ? pct.format(anomaly.hRes) : '—'],
     ['Health residual extremeness', anomaly ? `${pct.format(anomaly.hAbsPct * 100)}th percentile` : '—']
   ];
-  $('#drawerContent').innerHTML = `<p class="detail-kicker">UTILITY PROFILE</p><h2 class="detail-title">${d.name || 'Name unavailable'}</h2><p class="detail-id">${d.id} · ${d.st || 'State unavailable'} · ${d.own || 'Ownership unavailable'} · ${d.src || 'Source unavailable'}</p><div class="detail-table">${values.map(([k, v]) => `<div class="detail-row"><span>${k}</span><strong>${v}</strong></div>`).join('')}</div><h3 class="detail-section">Interpretation</h3><p class="definition">Model residuals use five-fold out-of-fold predictions from the confirmed report-era EMMA random-forest specification. Residual percentiles are screening thresholds, not confidence intervals, causal effects, or performance grades. The reported revenue-to-expense ratio describes available reporting-year records and does not by itself establish financial distress. Missing financial values indicate that no matching financial record was available.</p>`;
+  const interpretation = d.isSyntheticPwsid ? 'RIK is a project-assigned synthetic PWSID used to retain a Private company/subsidiary record without an EPA PWSID. It participates in state-level summaries, rankings, and descriptive trends, but does not represent a mapped service area and has no EMMA out-of-fold residual.' : 'Model residuals use five-fold out-of-fold predictions from the confirmed report-era EMMA random-forest specification. Residual percentiles are screening thresholds, not confidence intervals, causal effects, or performance grades.';
+  $('#drawerContent').innerHTML = `<p class="detail-kicker">UTILITY PROFILE</p><h2 class="detail-title">${d.name || 'Name unavailable'}</h2><p class="detail-id">${d.id} · ${d.st || 'State unavailable'} · ${d.own || 'Ownership unavailable'} · ${d.src || 'Source unavailable'}</p><div class="detail-table">${values.map(([k, v]) => `<div class="detail-row"><span>${k}</span><strong>${v}</strong></div>`).join('')}</div><h3 class="detail-section">Interpretation</h3><p class="definition">${interpretation}</p>`;
   $('#detailDrawer').classList.add('open');
   $('#scrim').classList.add('open');
   $('#detailDrawer').setAttribute('aria-hidden', 'false');
@@ -269,14 +276,24 @@ function renderObservedPredictedScatter(containerSelector, rows, observedKey, pr
 }
 
 function residualRows() {
-  const prefix = residualUi.outcome === 'charge' ? 'c' : 'h';
   const q = residualUi.search.trim().toLowerCase();
   return DATA.map(d => {
     const a = ANOMALIES?.byPwsid?.[d.id];
-    return a ? {...d, observed: a[`${prefix}Obs`], predicted: a[`${prefix}Pred`], residual: a[`${prefix}Res`], absPct: a[`${prefix}AbsPct`]} : null;
-  }).filter(Boolean).filter(d => !q || d.id.toLowerCase().includes(q) || (d.name || '').toLowerCase().includes(q))
-    .filter(d => !residualUi.state || d.st === residualUi.state)
-    .filter(d => !residualUi.direction || (residualUi.direction === 'positive' ? d.residual > 0 : d.residual < 0));
+    return a ? {...d, hObs:a.hObs, hPred:a.hPred, hRes:a.hRes, hAbsPct:a.hAbsPct, cObs:a.cObs, cPred:a.cPred, cRes:a.cRes, cAbsPct:a.cAbsPct} : null;
+  }).filter(Boolean).filter(d => ['hObs','hPred','hRes','hAbsPct','cObs','cPred','cRes','cAbsPct'].every(k => finite(d[k])))
+    .filter(d => !q || d.id.toLowerCase().includes(q) || (d.name || '').toLowerCase().includes(q))
+    .filter(d => !residualUi.state || d.st === residualUi.state);
+}
+
+function matchesResidualFilter(d, prefix, criterion) {
+  if (criterion === 'any') return true;
+  const residual = d[`${prefix}Res`], extreme = d[`${prefix}AbsPct`] >= ANOMALIES.meta.flagThreshold;
+  if (criterion === 'extreme') return extreme;
+  if (criterion === 'extreme-positive') return extreme && residual > 0;
+  if (criterion === 'extreme-negative') return extreme && residual < 0;
+  if (criterion === 'positive') return residual > 0;
+  if (criterion === 'negative') return residual < 0;
+  return true;
 }
 
 function renderResiduals() {
@@ -286,30 +303,32 @@ function renderResiduals() {
     return;
   }
   $('#residualWorkspace').hidden = false;
-  const metric = ANOMALIES.meta[residualUi.outcome];
-  $('#residualStatus').innerHTML = `<div><span class="status-tag verified">Reproduced</span><strong>Report-era EMMA model</strong></div><span>5-fold out-of-fold predictions · N ${fmt.format(metric.n)} · CV R² ${metric.cvR2.toFixed(3)} · RMSE ${metric.cvRmse.toFixed(3)} · MAE ${metric.cvMae.toFixed(3)}</span>`;
+  const healthMetric = ANOMALIES.meta.health, chargeMetric = ANOMALIES.meta.charge;
+  $('#residualStatus').innerHTML = `<div><span class="status-tag verified">Reproduced</span><strong>Report-era EMMA models</strong></div><span>Health: N ${fmt.format(healthMetric.n)}, CV R² ${healthMetric.cvR2.toFixed(3)} · Charge: N ${fmt.format(chargeMetric.n)}, CV R² ${chargeMetric.cvR2.toFixed(3)} · five-fold out-of-fold predictions</span>`;
   const base = residualRows();
-  const extreme = base.filter(d => d.absPct >= ANOMALIES.meta.flagThreshold);
-  const rows = (residualUi.scope === 'extreme' ? extreme : base).sort((a, b) => b.absPct - a.absPct);
-  const medianAbs = median(base.map(d => Math.abs(d.residual)));
-  const positiveMeaning = residualUi.outcome === 'charge' ? 'Higher charge than expected' : 'Higher violations than expected';
-  const negativeMeaning = residualUi.outcome === 'charge' ? 'Lower charge than expected' : 'Lower violations than expected';
+  const rows = base.filter(d => matchesResidualFilter(d, 'h', residualUi.healthFilter) && matchesResidualFilter(d, 'c', residualUi.chargeFilter))
+    .sort((a, b) => Math.max(b.hAbsPct, b.cAbsPct) - Math.max(a.hAbsPct, a.cAbsPct));
+  const healthExtreme = rows.filter(d => d.hAbsPct >= ANOMALIES.meta.flagThreshold).length;
+  const chargeExtreme = rows.filter(d => d.cAbsPct >= ANOMALIES.meta.flagThreshold).length;
   const summaries = [
-    ['Modeled utilities', fmt.format(base.length), 'After state and direction filters'],
-    ['Extreme cases', fmt.format(extreme.length), 'Top 5% by absolute residual'],
-    [positiveMeaning, fmt.format(extreme.filter(d => d.residual > 0).length), 'Positive extreme residuals'],
-    ['Median absolute residual', residualUi.outcome === 'charge' ? money.format(medianAbs) : pct.format(medianAbs), 'Typical model deviation']
+    ['Matched utilities', fmt.format(rows.length), 'Meeting both outcome conditions'],
+    ['Health extremes', fmt.format(healthExtreme), 'Within the matched selection'],
+    ['Charge extremes', fmt.format(chargeExtreme), 'Within the matched selection'],
+    ['Dual extremes', fmt.format(rows.filter(d => d.hAbsPct >= ANOMALIES.meta.flagThreshold && d.cAbsPct >= ANOMALIES.meta.flagThreshold).length), 'Extreme for both outcomes']
   ];
   $('#residualSummary').innerHTML = summaries.map(([l,v,c]) => `<div class="summary-item"><span class="summary-label">${l}</span><strong class="summary-value">${v}</strong><span class="summary-context">${c}</span></div>`).join('');
-  const value = v => residualUi.outcome === 'charge' ? money.format(v) : pct.format(v);
-  renderObservedPredictedScatter('#residualScatter', rows, 'observed', 'predicted', {
-    tooltip: d => `<strong>${escapeHtml(d.name || 'Name unavailable')}</strong><br>${escapeHtml(d.id)} · ${escapeHtml(d.st || 'State unavailable')}<br>Observed: ${value(d.observed)}<br>Expected: ${value(d.predicted)}<br>Residual: ${d.residual >= 0 ? '+' : ''}${value(d.residual)}`
+  const scatter = $('#residualScatter'); scatter.innerHTML = ''; scatter.classList.add('multi-outcome-scatter');
+  [['health','10-year health violations','hObs','hPred','hRes'],['charge','Annual water charge','cObs','cPred','cRes']].forEach(([key,label,obs,pred,res]) => {
+    const panel = document.createElement('div'); panel.className = 'residual-outcome-plot'; panel.innerHTML = `<h3>${label}</h3><div id="residual-${key}-plot"></div>`; scatter.appendChild(panel);
+    renderObservedPredictedScatter(`#residual-${key}-plot`, rows.map(d => ({...d, observed:d[obs], predicted:d[pred], residual:d[res]})), 'observed', 'predicted', {
+      tooltip: d => `<strong>${escapeHtml(d.name || 'Name unavailable')}</strong><br>${escapeHtml(d.id)} · ${escapeHtml(d.st || 'State unavailable')}<br>${label}<br>Observed: ${key === 'charge' ? money.format(d.observed) : pct.format(d.observed)}<br>Expected: ${key === 'charge' ? money.format(d.predicted) : pct.format(d.predicted)}<br>Residual: ${d.residual >= 0 ? '+' : ''}${key === 'charge' ? money.format(d.residual) : pct.format(d.residual)}`
+    });
   });
-  $('#residualFigureNote').textContent = `The diagonal represents observed = expected. Blue points indicate ${positiveMeaning.toLowerCase()}; ochre points indicate ${negativeMeaning.toLowerCase()}. These are screening percentiles, not confidence intervals. Axes are capped at the 99th percentile for legibility.`;
+  $('#residualFigureNote').textContent = `Both charts show the same jointly filtered utilities. The diagonal represents observed = expected; axes are capped at the 99th percentile for legibility.`;
   const pages = Math.max(1, Math.ceil(rows.length / 5)); residualUi.page = Math.min(residualUi.page, pages);
   const start = (residualUi.page - 1) * 5;
   const top = rows.slice(start, start + 5);
-  $('#residualBody').innerHTML = top.map((d, i) => `<tr data-id="${d.id}"><td>${i+1}</td><td><span class="record-name">${d.name || 'Name unavailable'}</span><span class="record-id">${d.id}</span></td><td>${d.st || '—'}</td><td>${d.own || '—'}</td><td class="num">${value(d.observed)}</td><td class="num">${value(d.predicted)}</td><td class="num residual-${d.residual >= 0 ? 'positive' : 'negative'}">${d.residual >= 0 ? '+' : ''}${value(d.residual)}</td><td class="num">${pct.format(d.absPct * 100)}%</td></tr>`).join('');
+  $('#residualBody').innerHTML = top.map((d, i) => `<tr data-id="${d.id}"><td>${start+i+1}</td><td><span class="record-name">${d.name || 'Name unavailable'}</span><span class="record-id">${d.id}</span></td><td>${d.st || '—'}</td><td>${d.own || '—'}</td><td class="num residual-${d.hRes >= 0 ? 'positive' : 'negative'}">${d.hRes >= 0 ? '+' : ''}${pct.format(d.hRes)}</td><td class="num">${pct.format(d.hAbsPct * 100)}%</td><td class="num residual-${d.cRes >= 0 ? 'positive' : 'negative'}">${d.cRes >= 0 ? '+' : ''}${money.format(d.cRes)}</td><td class="num">${pct.format(d.cAbsPct * 100)}%</td></tr>`).join('');
   $('#residualResultCount').textContent = `Showing ${rows.length ? start + 1 : 0}–${Math.min(start + 5, rows.length)} of ${fmt.format(rows.length)} records in this selection.`;
   $('#residualPageLabel').textContent = `Page ${residualUi.page} of ${pages}`;
   $('#residualPrevBtn').disabled = residualUi.page === 1; $('#residualNextBtn').disabled = residualUi.page === pages;
@@ -317,31 +336,33 @@ function renderResiduals() {
 }
 
 function renderTrends() {
-  const rows = TRENDS.rows.filter(d => !trendUi.ownership || d.own === trendUi.ownership);
+  const rows = [...TRENDS.rows.map(d => ({...d, name: DATA_BY_ID.get(d.id)?.name || null})), ...RIK_TRENDS]
+    .filter(d => !trendUi.ownership || d.own === trendUi.ownership);
   const prefix = trendUi.outcome === 'health' ? 'h' : 't';
   const improved = rows.filter(d => d[`${prefix}Delta`] < 0).length, worsened = rows.filter(d => d[`${prefix}Delta`] > 0).length;
   const unchanged = rows.length - improved - worsened;
   $('#trendSummary').innerHTML = [
-    ['Compared PWSIDs', fmt.format(rows.length), TRENDS.meta.source],
+    ['Compared records', fmt.format(rows.length), `${TRENDS.meta.source} + 36 project-assigned RIK IDs`],
     ['Improved', `${pct.format(improved / rows.length * 100)}%`, `${fmt.format(improved)} systems`],
     ['Worsened', `${pct.format(worsened / rows.length * 100)}%`, `${fmt.format(worsened)} systems`],
     ['No change', `${pct.format(unchanged / rows.length * 100)}%`, `${fmt.format(unchanged)} systems`]
   ].map(([l,v,c]) => `<div class="summary-item"><span class="summary-label">${l}</span><strong class="summary-value">${v}</strong><span class="summary-context">${c}</span></div>`).join('');
-  renderObservedPredictedScatter('#trendScatter', rows.map(d => ({...d, ...DATA.find(x => x.id === d.id), predicted:d[`${prefix}Prev`], observed:d[`${prefix}Recent`], residual:d[`${prefix}Delta`]})), 'observed', 'predicted', {
+  renderObservedPredictedScatter('#trendScatter', rows.map(d => ({...d, predicted:d[`${prefix}Prev`], observed:d[`${prefix}Recent`], residual:d[`${prefix}Delta`]})), 'observed', 'predicted', {
     tooltip: d => `<strong>${escapeHtml(d.name || 'Name unavailable')}</strong><br>${escapeHtml(d.id)} · ${escapeHtml(d.own || 'Ownership unavailable')}<br>Previous annual avg: ${pct.format(d.predicted)}<br>Recent annual avg: ${pct.format(d.observed)}<br>Change: ${d.residual > 0 ? '+' : ''}${pct.format(d.residual)}`,
     onSelect: d => {
       const direction = d.residual < 0 ? 'Improved' : d.residual > 0 ? 'Worsened' : 'No change';
       $('#trendPointDetail').innerHTML = `<p class="kicker">SELECTED RECORD</p><h3>${escapeHtml(d.name || 'Name unavailable')}</h3><p>${escapeHtml(d.id)} · ${escapeHtml(d.st || 'State unavailable')} · ${escapeHtml(d.own || 'Ownership unavailable')}</p><dl><div><dt>Previous annual avg</dt><dd>${pct.format(d.predicted)}</dd></div><div><dt>Recent annual avg</dt><dd>${pct.format(d.observed)}</dd></div><div><dt>Change</dt><dd class="residual-${d.residual >= 0 ? 'positive' : 'negative'}">${d.residual > 0 ? '+' : ''}${pct.format(d.residual)}</dd></div><div><dt>Direction</dt><dd>${direction}</dd></div></dl><button class="quiet-button point-profile-button">Open utility profile</button>`;
-      $('#trendPointDetail .point-profile-button').addEventListener('click', () => { const record = DATA.find(x => x.id === d.id); if (record) openDetail(record); });
+      $('#trendPointDetail .point-profile-button').addEventListener('click', () => { const record = DATA_BY_ID.get(d.id); if (record) openDetail(record); });
     }
   });
   const rankValue = d => trendUi.rank === 'worsened' ? d[`${prefix}Delta`] : trendUi.rank === 'improved' ? -d[`${prefix}Delta`] : trendUi.rank === 'level' ? d[`${prefix}10`] : Math.abs(d[`${prefix}Delta`]);
   const sorted = [...rows].sort((a,b) => rankValue(b)-rankValue(a));
   const pages = Math.max(1, Math.ceil(sorted.length/PAGE_SIZE)); trendUi.page=Math.min(trendUi.page,pages);
   const start=(trendUi.page-1)*PAGE_SIZE, pageRows=sorted.slice(start,start+PAGE_SIZE);
-  $('#trendBody').innerHTML = pageRows.map((d,i) => { const delta=d[`${prefix}Delta`]; return `<tr><td>${start+i+1}</td><td>${d.id}</td><td>${d.st||'—'}</td><td>${d.own||'—'}</td><td class="num">${finite(d.pop)?fmt.format(d.pop):'—'}</td><td class="num">${fmt.format(d[`${prefix}10`])}</td><td class="num">${pct.format(d[`${prefix}Prev`])}</td><td class="num">${pct.format(d[`${prefix}Recent`])}</td><td class="num residual-${delta>=0?'positive':'negative'}">${delta>0?'+':''}${pct.format(delta)}</td><td>${delta<0?'Improved':delta>0?'Worsened':'No change'}</td></tr>`; }).join('');
-  $('#trendResultCount').textContent=`${fmt.format(sorted.length)} PWSIDs after ownership filter`; $('#trendPageLabel').textContent=`Page ${trendUi.page} of ${pages}`;
+  $('#trendBody').innerHTML = pageRows.map((d,i) => { const delta=d[`${prefix}Delta`]; return `<tr data-id="${d.id}"><td>${start+i+1}</td><td><span class="record-name">${d.name || 'Name unavailable'}</span><span class="record-id">${d.id}</span></td><td>${d.st||'—'}</td><td>${d.own||'—'}</td><td class="num">${finite(d.pop)?fmt.format(d.pop):'—'}</td><td class="num">${fmt.format(d[`${prefix}10`])}</td><td class="num">${pct.format(d[`${prefix}Prev`])}</td><td class="num">${pct.format(d[`${prefix}Recent`])}</td><td class="num residual-${delta>=0?'positive':'negative'}">${delta>0?'+':''}${pct.format(delta)}</td><td>${delta<0?'Improved':delta>0?'Worsened':'No change'}</td></tr>`; }).join('');
+  $('#trendResultCount').textContent=`${fmt.format(sorted.length)} records after ownership filter`; $('#trendPageLabel').textContent=`Page ${trendUi.page} of ${pages}`;
   $('#trendPrevBtn').disabled=trendUi.page===1; $('#trendNextBtn').disabled=trendUi.page===pages;
+  document.querySelectorAll('#trendBody tr').forEach(row => row.addEventListener('click', () => { const record = DATA_BY_ID.get(row.dataset.id); if (record) openDetail(record); }));
 }
 
 function renderOutliers() { renderResiduals(); renderTrends(); }
@@ -366,8 +387,8 @@ document.querySelectorAll('.nav-item').forEach(button => button.addEventListener
 
 [
   ['#residualSearch', 'search'],
-  ['#residualOutcome', 'outcome'], ['#residualDirection', 'direction'],
-  ['#residualState', 'state'], ['#residualScope', 'scope']
+  ['#residualHealthFilter', 'healthFilter'], ['#residualChargeFilter', 'chargeFilter'],
+  ['#residualState', 'state']
 ].forEach(([selector, key]) => $(selector).addEventListener(selector === '#residualSearch' ? 'input' : 'change', event => {
   residualUi[key] = event.target.value;
   residualUi.page = 1;
