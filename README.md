@@ -66,8 +66,9 @@ Documents scope, variable definitions, data lineage, matching rules, and major i
 
 ## Data notes and limitations
 
-- EMMA does not contain a utility-name field for every PWSID. Names shown in the dashboard are matched from available public, private, combined, and AWWA source files; unmatched records remain labeled `Name unavailable`.
-- The AWWA survey does not cover every national community water system.
+- EMMA does not contain a utility-name field for every PWSID. The EPA SABS crosswalk with ACS 2021 is the primary name source; public, private, combined, and AWWA files provide fallback names where the EPA crosswalk is unavailable. Unmatched records remain labeled `Name unavailable`.
+- The EPA crosswalk supplies names for 42,368 dashboard PWSIDs. After fallback matching, 42,568 of 43,531 dashboard utilities have an available name.
+- The AWWA survey does not cover every national community water system and is used only as a fallback name source.
 - Ownership in the analytical files is not a verified year-by-year ownership history.
 - Ten-year violations may include events occurring before a later acquisition or ownership change.
 - Private financial information may be consolidated at company level, whereas violations are associated with PWSIDs.
